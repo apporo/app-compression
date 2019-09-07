@@ -1,0 +1,8 @@
+dist
+examples
+test
+.hit
+.gitignore
+.npmignore
+.npmrc
+opwire-*

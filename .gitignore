@@ -1,0 +1,8 @@
+.idea
+.vscode
+.npmrc
+node_modules
+/lib
+/log
+/test/data
+opwire-*
