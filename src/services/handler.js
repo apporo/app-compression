@@ -1,5 +1,8 @@
 'use strict';
 
+const Devebot = require('devebot');
+const lodash = Devebot.require('lodash');
+
 const CompressionHelper = require('../supports/compression-helper');
 
 function Service (params = {}) {
@@ -10,7 +13,13 @@ function Service (params = {}) {
 
   const errorBuilder = errorManager.getErrorBuilder(packageName);
 
-  const compressor = new CompressionHelper({ logger: L, tracer: T, errorBuilder });
+  const helperOptions = lodash.assign({
+    logger: L,
+    tracer: T,
+    errorBuilder
+  }, lodash.pick(sandboxConfig, ['compressionLevel', 'stopOnError']));
+
+  const compressor = new CompressionHelper(helperOptions);
 
   this.deflate = function (args = {}, opts = {}) {
     return compressor.deflate(args, opts);

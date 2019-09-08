@@ -3,33 +3,37 @@
 const assert = require('assert');
 const Devebot = require('devebot');
 const Bluebird = Devebot.require('bluebird');
-const chores = Devebot.require('chores');
 const lodash = Devebot.require('lodash');
 
 const archiver = require('archiver');
-const http = require('http');
 const stream = require('stream');
 const fetch = require('node-fetch');
+const StringStream = require('./string-stream');
+
+const emptyStream = new StringStream();
 
 fetch.Promise = Bluebird;
 
 function CompressionHelper (params = {}) {
-  let { logger, tracer, errorBuilder } = params;
+  let { logger, tracer, errorBuilder, compressionLevel, stopOnError } = params;
 
   assert.ok(!lodash.isNil(logger));
   assert.ok(!lodash.isNil(tracer));
   assert.ok(!lodash.isNil(errorBuilder));
 
-  const refs = { logger, tracer, errorBuilder };
+  compressionLevel = compressionLevel || 9;
+
+  const refs = { logger, tracer, errorBuilder, compressionLevel, stopOnError };
 
   this.deflate = function (args = {}, opts = {}) {
     const { writer } = args;
     const { language } = opts;
-    if (!isStreamWritable(writer)) {
+    if (!isWritableStream(writer)) {
       return Bluebird.reject(errorBuilder.newError('InvalidStreamWriter', {
         language,
         payload: {
-          writerType: (typeof writer)
+          writerType: (typeof writer),
+          writerName: writer && writer.constructor && writer.constructor.name,
         }
       }));
     }
@@ -43,23 +47,30 @@ function isPureObject (o) {
   return o && (typeof o === 'object') && !Array.isArray(o);
 }
 
-function isStreamWritable (writable) {
+function isReadableStream (readable) {
+  if (readable instanceof stream) return true;
+  if (readable instanceof stream.Readable) return true;
+  return false;
+}
+
+function isWritableStream (writable) {
+  if (writable instanceof stream) return true;
   if (writable instanceof stream.Writable) return true;
-  if (writable instanceof http.ServerResponse) return true;
   if (!isPureObject(writable)) return false;
-  if (writable.constructor.name === 'ServerResponse') return true;
   if (!lodash.isFunction(writable.write)) return false;
   if (!lodash.isFunction(writable.end)) return false;
   return true;
 }
 
 function deflateDescriptors (args = {}, opts = {}) {
-  const { logger: L, tracer: T, errorBuilder, requestId } = opts;
+  const { logger: L, tracer: T, errorBuilder, compressionLevel, requestId } = opts;
   const { descriptors, writer } = args;
 
   return new Bluebird(function(resolved, rejected) {
     const zipper = archiver('zip', {
-      zlib: { level: 9 } // Sets the compression level.
+      zlib: {
+        level: compressionLevel
+      }
     });
 
     zipper.on('warning', function(warn) {
@@ -118,7 +129,7 @@ function deflateDescriptors (args = {}, opts = {}) {
 
 function deflateDescriptor (zipper, descriptor = {}, opts = {}) {
   let { type, source, target } = descriptor;
-  let { logger: L, tracer: T, errorBuilder, requestId } = opts;
+  let { logger: L, tracer: T, errorBuilder, stopOnError, requestId } = opts;
 
   switch (type) {
     case 'href': {
@@ -132,16 +143,22 @@ function deflateDescriptor (zipper, descriptor = {}, opts = {}) {
           }).toMessage({
             tmpl: 'Req[${requestId}] response from <${url}> is invalid (statusCode: ${statusCode})'
           }));
-          return Bluebird.reject(errorBuilder.newError('ResponseStatusIsNotOk'));
+          if (stopOnError) {
+            return Bluebird.reject(errorBuilder.newError('HttpResourceRespStatusIsNotOk'));
+          }
+          return emptyStream;
         }
         return res.body;
       })
       .then(function (reader) {
-        if (!(reader instanceof stream.Readable)) {
+        if (!isReadableStream(reader)) {
           L.has('debug') && L.log('debug', T.add({ requestId }).toMessage({
             tmpl: 'Req[${requestId}] response body must be a stream.Readable'
           }));
-          return Bluebird.reject(errorBuilder.newError('ResponseBodyIsInvalid'));
+          if (stopOnError) {
+            return Bluebird.reject(errorBuilder.newError('HttpResourceRespBodyIsInvalid'));
+          }
+          reader = emptyStream;
         }
         return zipper.append(reader, { name: target });
       })
@@ -149,7 +166,10 @@ function deflateDescriptor (zipper, descriptor = {}, opts = {}) {
         L.has('debug') && L.log('debug', T.add({ requestId }).toMessage({
           tmpl: 'Req[${requestId}] fetch() call is error'
         }));
-        return Bluebird.reject(err);
+        if (stopOnError) {
+          return Bluebird.reject(err);
+        }
+        return zipper;
       });
     }
     case 'file': {
@@ -162,7 +182,16 @@ function deflateDescriptor (zipper, descriptor = {}, opts = {}) {
         return Bluebird.resolve(zipper.directory(source, false));
       }
     }
-    default:
-      return Bluebird.reject();
+    default: {
+      if (stopOnError) {
+        return Bluebird.reject(errorBuilder.newError('ResourceTypeUnsupported', {
+          payload: {
+            descriptor
+          },
+          language
+        }));
+      }
+      return Bluebird.resolve(zipper);
+    }
   }
 }
