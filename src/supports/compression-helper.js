@@ -37,7 +37,7 @@ function CompressionHelper (params = {}) {
         }
       }));
     }
-    return deflateDescriptors(args, Object.assign({}, opts, refs));
+    return deflateResources(args, Object.assign({}, opts, refs));
   }
 }
 
@@ -62,9 +62,9 @@ function isWritableStream (writable) {
   return true;
 }
 
-function deflateDescriptors (args = {}, opts = {}) {
+function deflateResources (args = {}, opts = {}) {
   const { logger: L, tracer: T, errorBuilder, compressionLevel, requestId } = opts;
-  const { descriptors, writer } = args;
+  const { resources, writer } = args;
 
   return new Bluebird(function(resolved, rejected) {
     const zipper = archiver('zip', {
@@ -113,8 +113,8 @@ function deflateDescriptors (args = {}, opts = {}) {
     // pipe zipper data to the stream
     zipper.pipe(writer);
 
-    Bluebird.mapSeries(descriptors, function(descriptor) {
-      return deflateDescriptor(zipper, descriptor, opts).catch(function(err) {
+    Bluebird.mapSeries(resources, function(resource) {
+      return deflateResource(zipper, resource, opts).catch(function(err) {
         return err;
       });
     })
@@ -127,8 +127,8 @@ function deflateDescriptors (args = {}, opts = {}) {
   });
 }
 
-function deflateDescriptor (zipper, descriptor = {}, opts = {}) {
-  let { type, source, target } = descriptor;
+function deflateResource (zipper, resource = {}, opts = {}) {
+  let { type, source, target } = resource;
   let { logger: L, tracer: T, errorBuilder, stopOnError, requestId } = opts;
 
   switch (type) {
@@ -186,7 +186,7 @@ function deflateDescriptor (zipper, descriptor = {}, opts = {}) {
       if (stopOnError) {
         return Bluebird.reject(errorBuilder.newError('ResourceTypeUnsupported', {
           payload: {
-            descriptor
+            resource
           },
           language
         }));

@@ -27,7 +27,7 @@ describe('supports/compression-helper', function() {
 
   it('compression a folder', function() {
     return compressionHelper.deflate({
-      descriptors: [
+      resources: [
         {
           type: 'directory',
           source: path.join(__dirname, '../data/files'),
