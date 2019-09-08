@@ -7,13 +7,14 @@ const chores = Devebot.require('chores');
 const lodash = Devebot.require('lodash');
 
 const archiver = require('archiver');
+const http = require('http');
 const stream = require('stream');
 const fetch = require('node-fetch');
 
 fetch.Promise = Bluebird;
 
 function CompressionHelper (params = {}) {
-  let { logger, tracer, errorBuilder, language } = params;
+  let { logger, tracer, errorBuilder } = params;
 
   assert.ok(!lodash.isNil(logger));
   assert.ok(!lodash.isNil(tracer));
@@ -23,7 +24,8 @@ function CompressionHelper (params = {}) {
 
   this.deflate = function (args = {}, opts = {}) {
     const { writer } = args;
-    if (!(writer instanceof stream.Writable)) {
+    const { language } = opts;
+    if (!isStreamWritable(writer)) {
       return Bluebird.reject(errorBuilder.newError('InvalidStreamWriter', {
         language,
         payload: {
@@ -36,6 +38,20 @@ function CompressionHelper (params = {}) {
 }
 
 module.exports = CompressionHelper;
+
+function isPureObject (o) {
+  return o && (typeof o === 'object') && !Array.isArray(o);
+}
+
+function isStreamWritable (writable) {
+  if (writable instanceof stream.Writable) return true;
+  if (writable instanceof http.ServerResponse) return true;
+  if (!isPureObject(writable)) return false;
+  if (writable.constructor.name === 'ServerResponse') return true;
+  if (!lodash.isFunction(writable.write)) return false;
+  if (!lodash.isFunction(writable.end)) return false;
+  return true;
+}
 
 function deflateDescriptors (args = {}, opts = {}) {
   const { logger: L, tracer: T, errorBuilder, requestId } = opts;
@@ -86,14 +102,17 @@ function deflateDescriptors (args = {}, opts = {}) {
     // pipe zipper data to the stream
     zipper.pipe(writer);
 
-    if (lodash.isArray(descriptors)) {
-      Bluebird.mapSeries(descriptors, function(descriptor) {
-        return deflateDescriptor(zipper, descriptor);
-      })
-      .then(function() {
-        zipper.finalize();
-      })
-    }
+    Bluebird.mapSeries(descriptors, function(descriptor) {
+      return deflateDescriptor(zipper, descriptor, opts).catch(function(err) {
+        return err;
+      });
+    })
+    .catch(function (err) {
+      rejected(err);
+    })
+    .finally(function() {
+      zipper.finalize();
+    });
   });
 }
 
