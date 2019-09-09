@@ -235,7 +235,7 @@ function deflateResource (zipper, resource = {}, opts = {}) {
           return zipper;
         }
         target = slugify(target, { lower: true });
-        if (!extension) {
+        if (!extension && reader !== emptyStream) {
           return fileType.stream(reader).then(function (wrappedStream) {
             let ext = wrappedStream.fileType.ext;
             return zipper.append(wrappedStream, { name: buildFilename(target, ext) });
