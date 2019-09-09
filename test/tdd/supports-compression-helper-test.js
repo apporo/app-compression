@@ -34,9 +34,15 @@ describe('supports/compression-helper', function() {
           target: 'subdata/items'
         },
         {
+          type: 'http',
+          source: 'https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf',
+          target: 'PLDI 09'
+        },
+        {
           type: 'href',
           source: 'http://acegik.net/blog/images/logo.png',
-          target: 'jdbc.png'
+          target: 'My logo',
+          // extension: 'png'
         }
       ],
       writer: fs.createWriteStream(path.join(__dirname, '../data/target.zip'))

@@ -8,6 +8,8 @@ const lodash = Devebot.require('lodash');
 const archiver = require('archiver');
 const stream = require('stream');
 const fetch = require('node-fetch');
+const fileType = require('file-type');
+const slugify = require('slugify');
 const StringStream = require('./string-stream');
 
 const emptyStream = new StringStream();
@@ -40,6 +42,68 @@ function CompressionHelper (params = {}) {
     return deflateResources(args, Object.assign({}, opts, refs));
   }
 }
+
+CompressionHelper.DEFLATE_ARGUMENTS_SCHEMA = {
+  "type": "object",
+  "properties": {
+    "resources": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "$ref": "#/definitions/HttpResource"
+          },
+          {
+            "$ref": "#/definitions/FileResource"
+          }
+        ]
+      }
+    }
+  },
+  "required": [ "resources" ],
+  "definitions": {
+    "HttpResource": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [ "http", "href" ]
+        },
+        "options": {
+          "type": "object",
+          "properties": {
+            "method": {
+              "type": "string"
+            }
+          }
+        },
+        "source": {
+          "type": "string"
+        },
+        "target": {
+          "type": "string"
+        }
+      },
+      "required": [ "type", "source", "target" ]
+    },
+    "FileResource": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [ "file", "directory" ]
+        },
+        "source": {
+          "type": "string"
+        },
+        "target": {
+          "type": "string"
+        }
+      },
+      "required": [ "type", "source", "target" ]
+    }
+  }
+};
 
 module.exports = CompressionHelper;
 
@@ -128,7 +192,7 @@ function deflateResources (args = {}, opts = {}) {
 }
 
 function deflateResource (zipper, resource = {}, opts = {}) {
-  let { type, source, target } = resource;
+  let { type, source, target, extension } = resource;
   let { logger: L, tracer: T, errorBuilder, stopOnError, skipOnError, requestId } = opts;
 
   switch (type) {
@@ -170,7 +234,14 @@ function deflateResource (zipper, resource = {}, opts = {}) {
         if (skipOnError && reader === emptyStream) {
           return zipper;
         }
-        return zipper.append(reader, { name: target });
+        target = slugify(target, { lower: true });
+        if (!extension) {
+          return fileType.stream(reader).then(function (wrappedStream) {
+            let ext = wrappedStream.fileType.ext;
+            return zipper.append(wrappedStream, { name: buildFilename(target, ext) });
+          })
+        }
+        return zipper.append(reader, { name: buildFilename(target, extension) });
       })
       .catch(function (err) {
         L.has('debug') && L.log('debug', T.add({ requestId }).toMessage({
@@ -204,4 +275,14 @@ function deflateResource (zipper, resource = {}, opts = {}) {
       return Bluebird.resolve(zipper);
     }
   }
+}
+
+function buildFilename (filename, extension) {
+  if (extension) {
+    const dot_ext = '.' + extension;
+    if (!filename.endsWith(dot_ext)) {
+      return filename + dot_ext;
+    }
+  }
+  return filename;
 }
