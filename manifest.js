@@ -10,6 +10,9 @@ module.exports = {
           "stopOnError": {
             "type": "boolean"
           },
+          "skipOnError": {
+            "type": "boolean"
+          },
           "errorCodes": {
             "type": "object",
             "patternProperties": {

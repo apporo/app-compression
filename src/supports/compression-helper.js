@@ -15,7 +15,7 @@ const emptyStream = new StringStream();
 fetch.Promise = Bluebird;
 
 function CompressionHelper (params = {}) {
-  let { logger, tracer, errorBuilder, compressionLevel, stopOnError } = params;
+  let { logger, tracer, errorBuilder, compressionLevel, stopOnError, skipOnError } = params;
 
   assert.ok(!lodash.isNil(logger));
   assert.ok(!lodash.isNil(tracer));
@@ -23,7 +23,7 @@ function CompressionHelper (params = {}) {
 
   compressionLevel = compressionLevel || 9;
 
-  const refs = { logger, tracer, errorBuilder, compressionLevel, stopOnError };
+  const refs = { logger, tracer, errorBuilder, compressionLevel, stopOnError, skipOnError };
 
   this.deflate = function (args = {}, opts = {}) {
     const { writer } = args;
@@ -129,11 +129,18 @@ function deflateResources (args = {}, opts = {}) {
 
 function deflateResource (zipper, resource = {}, opts = {}) {
   let { type, source, target } = resource;
-  let { logger: L, tracer: T, errorBuilder, stopOnError, requestId } = opts;
+  let { logger: L, tracer: T, errorBuilder, stopOnError, skipOnError, requestId } = opts;
 
   switch (type) {
+    case 'http':
     case 'href': {
-      return fetch(source)
+      let fetchOpts = {};
+      if (isPureObject(resource.options)) {
+        fetchOpts = lodash.merge(fetchOpts, lodash.pick(resource.options, [
+          'method', 'headers'
+        ]));
+      }
+      return fetch(source, fetchOpts)
       .then(function (res) {
         if (!res.ok) {
           L.has('debug') && L.log('debug', T.add({
@@ -148,17 +155,20 @@ function deflateResource (zipper, resource = {}, opts = {}) {
           }
           return emptyStream;
         }
-        return res.body;
-      })
-      .then(function (reader) {
-        if (!isReadableStream(reader)) {
+        if (!isReadableStream(res.body)) {
           L.has('debug') && L.log('debug', T.add({ requestId }).toMessage({
-            tmpl: 'Req[${requestId}] response body must be a stream.Readable'
+            tmpl: 'Req[${requestId}] response body must be a readable stream'
           }));
           if (stopOnError) {
             return Bluebird.reject(errorBuilder.newError('HttpResourceRespBodyIsInvalid'));
           }
-          reader = emptyStream;
+          return emptyStream;
+        }
+        return res.body;
+      })
+      .then(function (reader) {
+        if (skipOnError && reader === emptyStream) {
+          return zipper;
         }
         return zipper.append(reader, { name: target });
       })

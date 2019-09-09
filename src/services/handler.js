@@ -17,7 +17,7 @@ function Service (params = {}) {
     logger: L,
     tracer: T,
     errorBuilder
-  }, lodash.pick(sandboxConfig, ['compressionLevel', 'stopOnError']));
+  }, lodash.pick(sandboxConfig, ['compressionLevel', 'stopOnError', 'skipOnError']));
 
   const compressor = new CompressionHelper(helperOptions);
 
