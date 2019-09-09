@@ -11,7 +11,9 @@ function Service (params = {}) {
   const L = loggingFactory.getLogger();
   const T = loggingFactory.getTracer();
 
-  const errorBuilder = errorManager.getErrorBuilder(packageName);
+  const errorBuilder = errorManager.register(packageName, {
+    errorCodes: sandboxConfig.errorCodes
+  });
 
   const helperOptions = lodash.assign({
     logger: L,
@@ -29,6 +31,5 @@ function Service (params = {}) {
 module.exports = Service;
 
 Service.referenceHash = {
-  initializer: 'initializer',
   errorManager: 'app-errorlist/manager'
 }
