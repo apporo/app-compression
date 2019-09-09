@@ -29,14 +29,14 @@ function CompressionHelper (params = {}) {
 
   this.deflate = function (args = {}, opts = {}) {
     const { writer } = args;
-    const { language } = opts;
+    const { languageCode } = opts;
     if (!isWritableStream(writer)) {
       return Bluebird.reject(errorBuilder.newError('InvalidStreamWriter', {
-        language,
         payload: {
           writerType: (typeof writer),
           writerName: writer && writer.constructor && writer.constructor.name,
-        }
+        },
+        language: languageCode,
       }));
     }
     return deflateResources(args, Object.assign({}, opts, refs));
@@ -127,7 +127,7 @@ function isWritableStream (writable) {
 }
 
 function deflateResources (args = {}, opts = {}) {
-  const { logger: L, tracer: T, errorBuilder, compressionLevel, requestId } = opts;
+  const { logger: L, tracer: T, compressionLevel, requestId } = opts;
   const { resources, writer } = args;
 
   return new Bluebird(function(resolved, rejected) {
@@ -178,9 +178,7 @@ function deflateResources (args = {}, opts = {}) {
     zipper.pipe(writer);
 
     Bluebird.mapSeries(resources, function(resource) {
-      return deflateResource(zipper, resource, opts).catch(function(err) {
-        return err;
-      });
+      return deflateResource(zipper, resource, opts);
     })
     .catch(function (err) {
       rejected(err);
@@ -193,7 +191,7 @@ function deflateResources (args = {}, opts = {}) {
 
 function deflateResource (zipper, resource = {}, opts = {}) {
   let { type, source, target, extension } = resource;
-  let { logger: L, tracer: T, errorBuilder, stopOnError, skipOnError, requestId } = opts;
+  let { logger: L, tracer: T, errorBuilder, stopOnError, skipOnError, requestId, languageCode } = opts;
 
   switch (type) {
     case 'http':
@@ -245,7 +243,7 @@ function deflateResource (zipper, resource = {}, opts = {}) {
       })
       .catch(function (err) {
         L.has('debug') && L.log('debug', T.add({ requestId }).toMessage({
-          tmpl: 'Req[${requestId}] fetch() call is error'
+          tmpl: 'Req[${requestId}] fetch() raises an error'
         }));
         if (stopOnError) {
           return Bluebird.reject(err);
@@ -269,7 +267,7 @@ function deflateResource (zipper, resource = {}, opts = {}) {
           payload: {
             resource
           },
-          language
+          language: languageCode,
         }));
       }
       return Bluebird.resolve(zipper);

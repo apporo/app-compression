@@ -2,7 +2,6 @@
 
 const Stream = require('stream');
 const inherits = require('util').inherits;
-const Buffer = require('buffer').Buffer;
 
 function StringStream(init) {
   Stream.super_.call(this);
@@ -25,12 +24,6 @@ StringStream.prototype.read = function (n) {
   if (n >= this._data.length || n === -1) this.emit('end');
   return chunk;
 };
-
-/**
- * Not quite sure if it is necessary to implement the pipe method.  But the
- * piping with the core method doesn't work. 
- * @param {Buffer} dest The destination stream to write to.
- */
 
 StringStream.prototype.pipe = function (dest) {
   dest.end(this.read());
