@@ -9,7 +9,7 @@ const archiver = require('archiver');
 const stream = require('stream');
 const fetch = require('node-fetch');
 const fileType = require('file-type');
-const slugify = require('slugify');
+const slugify = require('./string-slugify');
 const StringStream = require('./string-stream');
 
 const emptyStream = new StringStream();
@@ -232,7 +232,7 @@ function deflateResource (zipper, resource = {}, opts = {}) {
         if (skipOnError && reader === emptyStream) {
           return zipper;
         }
-        target = slugify(target, { lower: true });
+        target = slugify(target, { locale: 'vi' });
         if (!extension && reader !== emptyStream) {
           return fileType.stream(reader).then(function (wrappedStream) {
             let ext = wrappedStream.fileType.ext;
