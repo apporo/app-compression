@@ -10,7 +10,7 @@ var path = require('path');
 const slugify = require('../../lib/supports/string-slugify');
 
 describe('supports/string-slugify', function() {
-  it('slugify the unicode string', function() {
+  it('slugify the unicode string properly', function() {
     assert.equal(slugify('HÓA ĐƠN', {
       locale: 'vi',
       lower: true

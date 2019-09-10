@@ -4,7 +4,7 @@ module.exports = {
       "schema": {
         "type": "object",
         "properties": {
-          "compressionLevel": {
+          "zipLevel": {
             "type": "number"
           },
           "stopOnError": {
@@ -12,6 +12,10 @@ module.exports = {
           },
           "skipOnError": {
             "type": "boolean"
+          },
+          "letterCase": {
+            "type": "string",
+            "enum": [ "lower", "upper", "ignore" ]
           },
           "errorCodes": {
             "type": "object",

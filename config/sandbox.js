@@ -1,7 +1,7 @@
 module.exports = {
   plugins: {
     appCompression: {
-      compressionLevel: 9,
+      zipLevel: 9,
       errorCodes: {
         InvalidStreamWriter: {
           message: 'The writer must be a writable stream',

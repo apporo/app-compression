@@ -17,15 +17,18 @@ const emptyStream = new StringStream();
 fetch.Promise = Bluebird;
 
 function CompressionHelper (params = {}) {
-  let { logger, tracer, errorBuilder, compressionLevel, stopOnError, skipOnError } = params;
+  let { logger, tracer, errorBuilder, zipLevel, stopOnError, skipOnError, letterCase } = params;
 
   assert.ok(!lodash.isNil(logger));
   assert.ok(!lodash.isNil(tracer));
   assert.ok(!lodash.isNil(errorBuilder));
 
-  compressionLevel = compressionLevel || 9;
+  zipLevel = zipLevel || 9;
+  if (['lower', 'upper'].indexOf(letterCase) < 0) {
+    letterCase = null;
+  }
 
-  const refs = { logger, tracer, errorBuilder, compressionLevel, stopOnError, skipOnError };
+  const refs = { logger, tracer, errorBuilder, zipLevel, stopOnError, skipOnError, letterCase };
 
   this.deflate = function (args = {}, opts = {}) {
     const { writer } = args;
@@ -127,13 +130,13 @@ function isWritableStream (writable) {
 }
 
 function deflateResources (args = {}, opts = {}) {
-  const { logger: L, tracer: T, compressionLevel, requestId } = opts;
+  const { logger: L, tracer: T, zipLevel, requestId } = opts;
   const { resources, writer } = args;
 
   return new Bluebird(function(resolved, rejected) {
     const zipper = archiver('zip', {
       zlib: {
-        level: compressionLevel
+        level: zipLevel
       }
     });
 
@@ -191,7 +194,8 @@ function deflateResources (args = {}, opts = {}) {
 
 function deflateResource (zipper, resource = {}, opts = {}) {
   let { type, source, target, extension } = resource;
-  let { logger: L, tracer: T, errorBuilder, stopOnError, skipOnError, requestId, languageCode } = opts;
+  let { logger: L, tracer: T, errorBuilder, requestId, languageCode } = opts;
+  const { stopOnError, skipOnError, letterCase } = opts;
 
   switch (type) {
     case 'http':
@@ -232,7 +236,11 @@ function deflateResource (zipper, resource = {}, opts = {}) {
         if (skipOnError && reader === emptyStream) {
           return zipper;
         }
-        target = slugify(target, { locale: 'vi' });
+        const slugifyOpts = { locale: 'vi' };
+        if (letterCase) {
+          slugifyOpts[letterCase] = true;
+        }
+        target = slugify(target, slugifyOpts);
         if (!extension && reader !== emptyStream) {
           return fileType.stream(reader).then(function (wrappedStream) {
             let ext = wrappedStream.fileType.ext;
