@@ -42,7 +42,7 @@ describe('supports/compression-helper', function() {
           type: 'href',
           source: 'http://acegik.net/blog/images/logo.png',
           target: 'My logo',
-          // extension: 'png'
+          extension: 'png'
         }
       ],
       writer: fs.createWriteStream(path.join(__dirname, '../data/target.zip'))
